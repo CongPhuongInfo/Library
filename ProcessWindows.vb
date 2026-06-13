@@ -48,6 +48,9 @@ Public Class ProcessWindows
         Dim p As Process = Process.GetProcessById(Id)
         If p.HasExited = False Then
             hWnd = p.MainWindowHandle
+        Else
+            MessageBox.Show("Không tìm thấy ứng dụng đang chạy.")
+            Return
         End If
         SetForegroundWindow(hWnd)
     End Sub
@@ -62,7 +65,7 @@ Public Class ProcessWindows
         GetWindowRect(hWnd, rect)
         Dim mrect As New Rectangle()
         mrect.X = rect.Left
-        mrect.Y = rect.Right
+        mrect.Y = rect.Top  ' Bug fix: trước đây gán nhầm rect.Right vào Y
         mrect.Width = (rect.Right - rect.Left)
         mrect.Height = (rect.Bottom - rect.Top)
         Return mrect
@@ -83,6 +86,11 @@ Public Class ProcessWindows
         GetCursorInfo(ci)
         Return ci
     End Function
+    ''' <summary>
+    ''' Di chuyển chuột vào góc trên-trái của cửa sổ (offset +10, +45) rồi đọc CursorInfo.
+    ''' Dùng để lấy cursor khi game thay đổi con trỏ chuột theo vị trí màn hình.
+    ''' Lưu ý: hàm này có side effect (di chuyển chuột thật sự).
+    ''' </summary>
     Public Function GetNoCursor() As CursorInfo
         Dim rec As Rectangle = GetWinRectangle()
         MoveMouseTo(rec.X + 10, rec.Y + 45)

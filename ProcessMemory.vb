@@ -1,7 +1,5 @@
 ﻿Imports System.Diagnostics
-Imports System.IO
 Imports System.Runtime.InteropServices
-Imports System.Runtime.Serialization.Formatters.Binary
 Imports System.Text
 
 Public Class ProcessMemory
@@ -21,7 +19,7 @@ Public Class ProcessMemory
 #End Region
 #Region "Process"
     'https://msdn.microsoft.com/en-us/library/windows/desktop/ms684880(v=vs.85).aspx
-    Const PROCESS_WM_READ As Integer = &H10
+    Const PROCESS_VM_READ As Integer = &H10
     Const PROCESS_VM_WRITE As Integer = &H20
     Const PROCESS_ALL_ACCESS As Integer = &H1F0FFF
     Dim ProcessHandle As IntPtr
@@ -40,16 +38,21 @@ Public Class ProcessMemory
         End Try
     End Sub
 
-    Public Function ReadString(Position As Integer, Optional processSize As Integer = 24) As String
-        Return Encoding.UTF8.GetString(ReadBytes(Position, processSize))
+    ''' <summary>
+    ''' Đọc chuỗi từ bộ nhớ. Mặc định dùng Unicode (UTF-16 LE) phù hợp game Hàn/Trung.
+    ''' Truyền enc:=Encoding.UTF8 nếu game dùng UTF-8.
+    ''' </summary>
+    Public Function ReadString(Position As Integer, Optional processSize As Integer = 24, Optional enc As Encoding = Nothing) As String
+        If enc Is Nothing Then enc = Encoding.Unicode ' UTF-16 LE — chuẩn cho game Hàn/Trung
+        Return enc.GetString(ReadBytes(Position, processSize))
     End Function
-    Public Function ReadInt(ByVal Position As UInteger, Optional processSize As Integer = 24) As Integer
-        Dim bytes As Byte() = New Byte(processSize - 1) {}
+    Public Function ReadInt(ByVal Position As UInteger) As Integer
+        Dim bytes As Byte() = New Byte(3) {} ' 4 bytes cố định cho Int32
         ReadProcessMemory(ProcessHandle, IntPtr.op_Explicit(Position), bytes, UIntPtr.op_Explicit(4), 0)
         Return BitConverter.ToInt32(bytes, 0)
     End Function
-    Public Function ReadInt(ByVal Position As UInteger, ByVal offset As UInteger, Optional processSize As Integer = 24) As Integer
-        Dim bytes As Byte() = New Byte(processSize - 1) {}
+    Public Function ReadInt(ByVal Position As UInteger, ByVal offset As UInteger) As Integer
+        Dim bytes As Byte() = New Byte(3) {} ' 4 bytes cố định cho Int32
         Dim Address As UInteger = CUInt(ReadInt(Position)) + offset
         ReadProcessMemory(ProcessHandle, IntPtr.op_Explicit(Address), bytes, UIntPtr.op_Explicit(4), 0)
         Return BitConverter.ToInt32(bytes, 0)
@@ -60,24 +63,20 @@ Public Class ProcessMemory
         Return buffer
     End Function
     Public Sub WriteBytes(ByVal Position As Integer, ByVal buffer As Byte())
-        WriteProcessMemory(ProcessHandle, Position, buffer, buffer.Length, 0)
+        WriteProcessMemory(ProcessHandle, IntPtr.op_Explicit(Position), buffer, CUInt(buffer.Length), 0)
     End Sub
-    Public Sub WriteBytes(ByVal Position As Integer, ByVal buffer As String)
-        Dim data As Byte() = Encoding.UTF8.GetBytes(buffer)
-        WriteProcessMemory(ProcessHandle, Position, data, data.Length, 0)
+    Public Sub WriteBytes(ByVal Position As Integer, ByVal buffer As String, Optional enc As Encoding = Nothing)
+        If enc Is Nothing Then enc = Encoding.Unicode ' UTF-16 LE — nhất quán với ReadString
+        Dim data As Byte() = enc.GetBytes(buffer)
+        WriteProcessMemory(ProcessHandle, IntPtr.op_Explicit(Position), data, CUInt(data.Length), 0)
     End Sub
     ''' <summary>
-    ''' Change processSize --> GetObjectSize("Hello Worlds !")
+    ''' Lấy kích thước thực của một struct/value type trong bộ nhớ unmanaged.
+    ''' Dùng để xác định processSize khi đọc/ghi. Ví dụ: GetObjectSize("Hello")
+    ''' Lưu ý: chỉ dùng được với value type (struct, primitive). Với String dùng Encoding.Unicode.GetByteCount(str).
     ''' </summary>
-    ''' <param name="value"></param>
-    ''' <returns></returns>
-    Public Function GetObjectSize(value As Object) As Integer
-        Dim bf As New BinaryFormatter()
-        Dim ms As New MemoryStream()
-        Dim Array As Byte()
-        bf.Serialize(ms, value)
-        Array = ms.ToArray()
-        Return Array.Length
+    Public Function GetObjectSize(Of T As Structure)(value As T) As Integer
+        Return Marshal.SizeOf(value)
     End Function
 #End Region
 #Region "Windows API"
@@ -94,7 +93,7 @@ Public Class ProcessMemory
     Private Declare Function WriteProcessMemory Lib "Kernel32.dll" (ByVal hProcess As IntPtr,
                                                                     ByVal lpBaseAddress As IntPtr,
                                                                     ByVal lpBuffer As Byte(),
-                                                                    ByVal nSize As UIntPtr,
+                                                                    ByVal nSize As UInteger,
                                                                     ByVal lpNumberOfBytesWritten As UInteger) As Boolean
 #End Region
 End Class
