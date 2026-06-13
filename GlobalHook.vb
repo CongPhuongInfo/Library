@@ -31,7 +31,7 @@ Public Class GlobalHook
 #Region "Enum"
     Enum VK As Byte
 
-        SPACE = 2
+        SPACE = &H20
         SHIFT = &H10
         CONTROL = &H11
         MENU = &H12
@@ -57,7 +57,7 @@ Public Class GlobalHook
         LSHIFT = &HA0 'Left SHIFT key
         RSHIFT = &HA1 'Right SHIFT key
         LCONTROL = &HA2
-        RCONTROL = &H3
+        RCONTROL = &HA3
         LALT = &HA4
         RALT = &HA5
     End Enum
@@ -94,7 +94,7 @@ Public Class GlobalHook
         LBUTTONUP = &H202
         MBUTTONDBLCLK = &H209
         MBUTTONDOWN = &H207
-        MBUTTONUP = &H520
+        MBUTTONUP = &H208
         MOUSEMOVE = &H200
         MOUSEWHEEL = &H20A
         RBUTTONDBLCLK = &H206
@@ -293,6 +293,12 @@ Public Class GlobalHook
         Dim handled As Boolean = False
 
         If nCode > -1 AndAlso (events("KeyDown") IsNot Nothing OrElse events("KeyUp") IsNot Nothing OrElse events("KeyPress") IsNot Nothing) Then ' If (nCode >= 0) Then
+            ' Bỏ qua keystroke do chính IME inject (KEYEVENTF_UNICODE hoặc LLKHF_INJECTED)
+            Dim KHS_check As KeyboardHookStruct = DirectCast(Marshal.PtrToStructure(lParam, GetType(KeyboardHookStruct)), KeyboardHookStruct)
+            Const LLKHF_INJECTED As Integer = &H10
+            If (KHS_check.flags And LLKHF_INJECTED) <> 0 Then
+                Return CallNextHookEx(KeyboardID, nCode, wParam, lParam)
+            End If
             Dim KHS As KeyboardHookStruct = DirectCast(Marshal.PtrToStructure(lParam, GetType(KeyboardHookStruct)), KeyboardHookStruct)
             Dim control As Boolean = ((GetKeyState(VK.LCONTROL) And &H80) <> 0) OrElse ((GetKeyState(VK.RCONTROL) And &H80) <> 0)
             Dim shift As Boolean = ((GetKeyState(VK.LSHIFT) And &H80) <> 0) OrElse ((GetKeyState(VK.RSHIFT) And &H80) <> 0)
@@ -328,7 +334,7 @@ Public Class GlobalHook
                     Dim e2 As New KeyPressEventArgs(key)
                     RaiseEvent KeyPress(Me, e2)
 
-                    handled = handled OrElse e.Handled
+                    handled = handled OrElse e2.Handled
                 End If
             End If
         End If
